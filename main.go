@@ -42,11 +42,16 @@ func main() {
 
 type RepoActivity struct {
 	Name    string
-	Commits []Commit
+	Commits []CommitDiff
 }
 
 type Commit struct {
 	Url string
+}
+
+type CommitDiff struct {
+	Metadata Commit
+	Diff     string
 }
 
 func GetDailyActivity(username string, repos []string, day, month, year int) []RepoActivity {
@@ -61,12 +66,10 @@ func PullCommitsForDay(username string, repo string, day, month, year int) RepoA
 	loc, _ := time.LoadLocation("Local")
 	begOfDay := time.Date(year, time.Month(month), day, 0, 0, 0, 0, loc)
 	endOfDay := time.Date(year, time.Month(month), day, 23, 59, 59, 999999999, loc)
-	commitsbytes := GetCommits(username, repo, begOfDay, endOfDay)
-	var commits []Commit
-	json.Unmarshal(commitsbytes, &commits)
+	commitsdiffs := GetCommits(username, repo, begOfDay, endOfDay)
 	var ra RepoActivity
 	ra.Name = repo
-	ra.Commits = commits
+	ra.Commits = commitsdiffs
 	return ra
 }
 
@@ -85,6 +88,22 @@ func getBody(url string) []byte {
 	return body
 }
 
+func getBodyDiff(url string) []byte {
+	client := &http.Client{}
+	req, err := http.NewRequest("GET", url, nil)
+	check(err)
+	req.Header.Del("Accept")
+	req.Header.Add("Accept", "application/vnd.github.diff")
+	resp, err := client.Do(req)
+	check(err)
+	defer resp.Body.Close()
+	body, err := ioutil.ReadAll(resp.Body)
+	if r := handle_url_err(url, err); r != nil {
+		return r
+	}
+	return body
+}
+
 func handle_url_err(url string, err error) []byte {
 	if err != nil {
 		fmt.Printf("Error with URL: %v\n", url)
@@ -93,7 +112,7 @@ func handle_url_err(url string, err error) []byte {
 	return nil
 }
 
-func GetCommits(username string, repo string, since, until time.Time) []byte {
+func GetCommits(username string, repo string, since, until time.Time) []CommitDiff {
 	// TODO get diffs instead of just the commit object, this will
 	// involve sending a special header "Accept:
 	// application/vnd.github.diff" which in order to do you have to
@@ -105,5 +124,13 @@ func GetCommits(username string, repo string, since, until time.Time) []byte {
 	full_url := base_url + "?since=" + since.Format(time_layout) + "&until=" + until.Format(time_layout)
 	fmt.Println(full_url)
 	body := getBody(full_url)
-	return body //make([]byte, 1) //
+	var commits []Commit
+	json.Unmarshal(body, &commits)
+	ret := make([]CommitDiff, len(commits))
+	for i := range commits {
+		body = getBodyDiff(commits[i].Url)
+		ret[i].Metadata = commits[i]
+		ret[i].Diff = string(body)
+	}
+	return ret //make([]byte, 1) //
 }
