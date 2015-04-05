@@ -7,12 +7,18 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
 const username = "jaffee"
 
 var repos = []string{"gogurt", "goplait", "robpike.io", "github"}
+
+var startdate = time.Date(2015, time.Month(3), 19, 0, 0, 0, 0, time.Local)
+var startminus1date = time.Date(2015, time.Month(3), 18, 0, 0, 0, 0, time.Local)
+
+const activityPath = "/Users/jaffee/go/src/github.com/jaffee/github/"
 
 func check(e error) {
 	if e != nil {
@@ -26,9 +32,55 @@ func main() {
 		fmt.Printf("%v %v %v\n", len(args[0]), len(args[1]), len(args[2]))
 		PullDate(args)
 	} else {
-		fmt.Printf("%v\n", args)
+		fmt.Printf("%v\n", startdate)
+		ds := figureDays()
+		fmt.Printf("DaysNeeded: %v\n", ds)
 		// Pull
 	}
+}
+
+func figureDays() []time.Time {
+	files, err := ioutil.ReadDir(activityPath)
+	check(err)
+	now := time.Now()
+	// TODO make now only down to the day, not hours etc.
+	prevDate := startdate.Add(time.Hour * -24)
+	var daysNeeded []time.Time
+
+	for _, f := range files {
+		name := f.Name()
+		if strings.HasSuffix(name, ".activity") {
+			loc := strings.LastIndex(name, ".activity")
+			datestr := name[:loc]
+			if len(datestr) != 8 {
+				fmt.Printf("You have a .activity file with a malformatted name: %v\n", name)
+				continue
+			}
+			year, err := strconv.Atoi(datestr[:4])
+			check(err)
+			month, err := strconv.Atoi(datestr[4:6])
+			check(err)
+			day, err := strconv.Atoi(datestr[6:8])
+			check(err)
+			date := time.Date(year, time.Month(month), day,
+				0, 0, 0, 0, time.Local)
+			fmt.Printf("Got the date %v\n", date)
+			if date.Before(now) && date.After(startminus1date) {
+				fmt.Printf("Date is before now and after start\n")
+				for date.Sub(prevDate) != time.Hour*24 {
+					prevDate = prevDate.Add(time.Hour * 24)
+					daysNeeded = append(daysNeeded, prevDate)
+				}
+				prevDate = date
+			}
+		}
+	}
+	for now.Sub(prevDate) >= time.Hour*24 {
+		prevDate = prevDate.Add(time.Hour * 24)
+		daysNeeded = append(daysNeeded, prevDate)
+	}
+	return daysNeeded
+
 }
 
 func PullDate(args []string) error {
@@ -47,7 +99,7 @@ func PullDate(args []string) error {
 
 	activity, err := GetDailyActivity(username, repos, day, month, year)
 
-	fname := fmt.Sprintf("%v%v%v.activity", year, month, day)
+	fname := activityPath + fmt.Sprintf("%4v%2v%2v.activity", year, month, day)
 
 	activityBytes, err := json.Marshal(activity)
 	if err != nil {
