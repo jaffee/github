@@ -29,13 +29,23 @@ func check(e error) {
 func main() {
 	args := os.Args[1:]
 	if len(args) == 3 {
-		fmt.Printf("%v %v %v\n", len(args[0]), len(args[1]), len(args[2]))
 		PullDate(args)
 	} else {
-		fmt.Printf("%v\n", startdate)
-		ds := figureDays()
-		fmt.Printf("DaysNeeded: %v\n", ds)
-		// Pull
+		for {
+			fmt.Println("Start new figurin")
+			ds := figureDays()
+			fmt.Printf("DaysNeeded: %v\n", ds)
+			argz := make([]string, 3)
+			for _, d := range ds {
+				argz[0] = strconv.FormatInt(int64(d.Year()), 10)
+				argz[1] = strconv.FormatInt(int64(d.Month()), 10)
+				argz[2] = strconv.FormatInt(int64(d.Day()), 10)
+				fmt.Printf("Now pulling %v %v %v\n", argz[0], argz[1], argz[2])
+				PullDate(argz)
+			}
+			fmt.Println("Done with this round... sleeping\n")
+			time.Sleep(12 * time.Hour)
+		}
 	}
 }
 
@@ -57,11 +67,11 @@ func figureDays() []time.Time {
 				continue
 			}
 			year, err := strconv.Atoi(datestr[:4])
-			check(err)
 			month, err := strconv.Atoi(datestr[4:6])
-			check(err)
 			day, err := strconv.Atoi(datestr[6:8])
-			check(err)
+			if err != nil {
+				continue // we don't hafta deal with these crappy filenames
+			}
 			date := time.Date(year, time.Month(month), day,
 				0, 0, 0, 0, time.Local)
 			fmt.Printf("Got the date %v\n", date)
@@ -99,7 +109,7 @@ func PullDate(args []string) error {
 
 	activity, err := GetDailyActivity(username, repos, day, month, year)
 
-	fname := activityPath + fmt.Sprintf("%4v%2v%2v.activity", year, month, day)
+	fname := activityPath + fmt.Sprintf("%04v%02v%02v.activity", year, month, day)
 
 	activityBytes, err := json.Marshal(activity)
 	if err != nil {
@@ -161,6 +171,11 @@ func getBody(url string) ([]byte, error) {
 	if err != nil {
 		return []byte{}, err
 	}
+	fmt.Printf("%v\n", resp)
+	if resp.StatusCode == 403 { // Forbidden
+		waitForRateLimitReset(resp)
+		return getBody(url)
+	}
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
@@ -169,6 +184,11 @@ func getBody(url string) ([]byte, error) {
 	//	ppJson(body)
 	// fmt.Printf("Got body for URL %v\n%v\n", url, string(body))
 	return body, nil
+}
+
+type Resp403 struct {
+	Message           string
+	Documentation_url string
 }
 
 func getBodyDiff(url string) ([]byte, error) {
@@ -183,12 +203,35 @@ func getBodyDiff(url string) ([]byte, error) {
 	if err != nil {
 		return []byte{}, err
 	}
+	if resp.StatusCode == 403 { // Forbidden
+		waitForRateLimitReset(resp)
+		return getBodyDiff(url)
+	}
+	fmt.Printf("%v\n", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return []byte{}, err
 	}
 	return body, nil
+}
+
+func waitForRateLimitReset(resp *http.Response) {
+	remstr := resp.Header.Get("X-RateLimit-Remaining")
+	resetstr := resp.Header.Get("X-RateLimit-Reset")
+	rem, err := strconv.Atoi(remstr)
+	check(err)
+	if rem > 0 {
+		panic("Thought we hit the rate limit, but we have " + remstr + " remaining")
+	}
+	reset, err := strconv.ParseInt(resetstr, 10, 0)
+	check(err)
+	// resetTime := time.Unix(reset, 0)
+	diff := reset - time.Now().Unix()
+	if diff > 0 {
+		dur := time.Duration((diff + 3) * int64(time.Second))
+		time.Sleep(dur)
+	}
 }
 
 func GetCommits(username string, repo string, since, until time.Time) ([]CommitDiff, error) {
@@ -201,7 +244,7 @@ func GetCommits(username string, repo string, since, until time.Time) ([]CommitD
 	base_url := "https://api.github.com/repos/" + username + "/" + repo + "/commits"
 	time_layout := "2006-01-02T15:04:05Z"
 	full_url := base_url + "?since=" + since.Format(time_layout) + "&until=" + until.Format(time_layout)
-	fmt.Println(full_url)
+	//	fmt.Println(full_url)
 	body, err := getBody(full_url)
 	if err != nil {
 		return nil, err
