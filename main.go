@@ -235,12 +235,6 @@ func waitForRateLimitReset(resp *http.Response) {
 }
 
 func GetCommits(username string, repo string, since, until time.Time) ([]CommitDiff, error) {
-	// TODO get diffs instead of just the commit object, this will
-	// involve sending a special header "Accept:
-	// application/vnd.github.diff" which in order to do you have to
-	// create a custom client and request object and set the headers
-	// on it.
-
 	base_url := "https://api.github.com/repos/" + username + "/" + repo + "/commits"
 	time_layout := "2006-01-02T15:04:05Z"
 	full_url := base_url + "?since=" + since.Format(time_layout) + "&until=" + until.Format(time_layout)
