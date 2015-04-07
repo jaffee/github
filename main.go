@@ -44,7 +44,8 @@ func main() {
 				PullDate(argz)
 			}
 			fmt.Println("Done with this round... sleeping\n")
-			time.Sleep(12 * time.Hour)
+			time.Sleep(12 * time.Minute)
+			fmt.Println("Done sleeping!\n")
 		}
 	}
 }
@@ -75,9 +76,9 @@ func figureDays() []time.Time {
 			date := time.Date(year, time.Month(month), day,
 				0, 0, 0, 0, time.Local)
 			fmt.Printf("Got the date %v\n", date)
-			if date.Before(now) && date.After(startminus1date) {
+			if date.After(startminus1date) && date.Before(now) {
 				fmt.Printf("Date is before now and after start\n")
-				for date.Sub(prevDate) != time.Hour*24 {
+				for !oneDayAhead(prevDate, date) {
 					prevDate = prevDate.Add(time.Hour * 24)
 					daysNeeded = append(daysNeeded, prevDate)
 				}
@@ -93,33 +94,28 @@ func figureDays() []time.Time {
 
 }
 
-func PullDate(args []string) error {
-	year, err := strconv.Atoi(args[0])
-	if err != nil {
-		return err
-	}
-	month, err := strconv.Atoi(args[1])
-	if err != nil {
-		return err
-	}
-	day, err := strconv.Atoi(args[2])
-	if err != nil {
-		return err
-	}
+func oneDayAhead(prevDate time.Time, date time.Time) bool {
+	nd := time.Date(prevDate.Year(), prevDate.Month(), prevDate.Day()+1, 0, 0, 0, 0, time.Local)
+	return nd.Year() == date.Year() && nd.Month() == date.Month() && nd.Day() == date.Day()
+}
 
-	activity, err := GetDailyActivity(username, repos, day, month, year)
+func PullDate(args []string) {
+	year, err := strconv.Atoi(args[0])
+	check(err)
+	month, err := strconv.Atoi(args[1])
+	check(err)
+	day, err := strconv.Atoi(args[2])
+	check(err)
+	fmt.Printf("Pulling date for args %v\n", args)
+
+	activity := GetDailyActivity(username, repos, day, month, year)
 
 	fname := activityPath + fmt.Sprintf("%04v%02v%02v.activity", year, month, day)
 
 	activityBytes, err := json.Marshal(activity)
-	if err != nil {
-		return err
-	}
+	check(err)
 	err = ioutil.WriteFile(fname, activityBytes, 0644)
-	if err != nil {
-		return err
-	}
-	return nil
+	check(err)
 }
 
 type RepoActivity struct {
@@ -137,40 +133,34 @@ type CommitDiff struct {
 	Diff     string
 }
 
-func GetDailyActivity(username string, repos []string, day, month, year int) ([]RepoActivity, error) {
+func GetDailyActivity(username string, repos []string, day, month, year int) []RepoActivity {
+	fmt.Printf("GetDailyActivity uname:%v repos:%v day:%v month:%v year:%v\n", username, repos, day, month, year)
 	repoActivities := make([]RepoActivity, len(repos))
 	for i := range repos {
-		c4d, err := PullCommitsForDay(username, repos[i], day, month, year)
-		if err != nil {
-			return []RepoActivity{}, err
-		}
+		c4d := PullCommitsForDay(username, repos[i], day, month, year)
 		repoActivities[i] = c4d
 	}
-	return repoActivities, nil
+	return repoActivities
 }
 
-func PullCommitsForDay(username string, repo string, day, month, year int) (RepoActivity, error) {
+func PullCommitsForDay(username string, repo string, day, month, year int) RepoActivity {
+	fmt.Printf("PullCommitsForDay uname:%v repo:%v\n", username, repo)
 	loc, err := time.LoadLocation("Local")
-	if err != nil {
-		return RepoActivity{}, err
-	}
+	check(err)
 	begOfDay := time.Date(year, time.Month(month), day, 0, 0, 0, 0, loc)
 	endOfDay := time.Date(year, time.Month(month), day, 23, 59, 59, 999999999, loc)
-	commitsdiffs, err := GetCommits(username, repo, begOfDay, endOfDay)
-	if err != nil {
-		return RepoActivity{}, err
-	}
+	commitsdiffs := GetCommits(username, repo, begOfDay, endOfDay)
+
 	var ra RepoActivity
 	ra.Name = repo
 	ra.Commits = commitsdiffs
-	return ra, nil
+	return ra
 }
 
-func getBody(url string) ([]byte, error) {
+func getBody(url string) []byte {
+	fmt.Printf("getBody %v\n", url)
 	resp, err := http.Get(url)
-	if err != nil {
-		return []byte{}, err
-	}
+	check(err)
 	fmt.Printf("%v\n", resp)
 	if resp.StatusCode == 403 { // Forbidden
 		waitForRateLimitReset(resp)
@@ -178,12 +168,10 @@ func getBody(url string) ([]byte, error) {
 	}
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return []byte{}, err
-	}
-	//	ppJson(body)
-	// fmt.Printf("Got body for URL %v\n%v\n", url, string(body))
-	return body, nil
+	check(err)
+
+	fmt.Printf("getBody returning %v\n", string(body))
+	return body
 }
 
 type Resp403 struct {
@@ -191,32 +179,29 @@ type Resp403 struct {
 	Documentation_url string
 }
 
-func getBodyDiff(url string) ([]byte, error) {
+func getBodyDiff(url string) []byte {
+	fmt.Printf("getBodyDiff %v\n", url)
 	client := &http.Client{}
 	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		return []byte{}, err
-	}
+	check(err)
 	req.Header.Del("Accept")
 	req.Header.Add("Accept", "application/vnd.github.diff")
 	resp, err := client.Do(req)
-	if err != nil {
-		return []byte{}, err
-	}
+	check(err)
 	if resp.StatusCode == 403 { // Forbidden
 		waitForRateLimitReset(resp)
 		return getBodyDiff(url)
 	}
-	fmt.Printf("%v\n", resp)
+
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return []byte{}, err
-	}
-	return body, nil
+	check(err)
+	fmt.Printf("getBodyDiff returning %v\n", string(body))
+	return body
 }
 
 func waitForRateLimitReset(resp *http.Response) {
+	fmt.Printf("waitForRateLimitReset resp:%v\n", resp)
 	remstr := resp.Header.Get("X-RateLimit-Remaining")
 	resetstr := resp.Header.Get("X-RateLimit-Reset")
 	rem, err := strconv.Atoi(remstr)
@@ -234,25 +219,21 @@ func waitForRateLimitReset(resp *http.Response) {
 	}
 }
 
-func GetCommits(username string, repo string, since, until time.Time) ([]CommitDiff, error) {
+func GetCommits(username string, repo string, since, until time.Time) []CommitDiff {
+	fmt.Printf("GetCommits uname:%v repo:%v since:%v, until:%v\n", username, repo, since, until)
 	base_url := "https://api.github.com/repos/" + username + "/" + repo + "/commits"
 	time_layout := "2006-01-02T15:04:05Z"
 	full_url := base_url + "?since=" + since.Format(time_layout) + "&until=" + until.Format(time_layout)
-	//	fmt.Println(full_url)
-	body, err := getBody(full_url)
-	if err != nil {
-		return nil, err
-	}
+
+	body := getBody(full_url)
 	var commits []Commit
 	json.Unmarshal(body, &commits)
 	ret := make([]CommitDiff, len(commits))
 	for i := range commits {
-		body, err := getBodyDiff(commits[i].Url)
-		if err != nil {
-			return []CommitDiff{}, err
-		}
+		body := getBodyDiff(commits[i].Url)
+
 		ret[i].Metadata = commits[i]
 		ret[i].Diff = string(body)
 	}
-	return ret, nil
+	return ret
 }
