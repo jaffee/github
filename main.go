@@ -13,10 +13,11 @@ import (
 
 const username = "jaffee"
 
+var l, _ = time.LoadLocation("America/Chicago")
 var repos = []string{"gogurt", "goplait", "robpike.io", "github"}
 
-var startdate = time.Date(2015, time.Month(3), 19, 0, 0, 0, 0, time.Local)
-var startminus1date = time.Date(2015, time.Month(3), 18, 0, 0, 0, 0, time.Local)
+var startdate = time.Date(2015, time.Month(3), 19, 0, 0, 0, 0, l)
+var startminus1date = time.Date(2015, time.Month(3), 18, 0, 0, 0, 0, l)
 
 const activityPath = "/Users/jaffee/go/src/github.com/jaffee/github/"
 
@@ -45,7 +46,6 @@ func main() {
 			}
 			fmt.Println("Done with this round... sleeping\n")
 			time.Sleep(12 * time.Minute)
-			fmt.Println("Done sleeping!\n")
 		}
 	}
 }
@@ -74,10 +74,9 @@ func figureDays() []time.Time {
 				continue // we don't hafta deal with these crappy filenames
 			}
 			date := time.Date(year, time.Month(month), day,
-				0, 0, 0, 0, time.Local)
+				0, 0, 0, 0, l)
 			fmt.Printf("Got the date %v\n", date)
 			if date.After(startminus1date) && date.Before(now) {
-				fmt.Printf("Date is before now and after start\n")
 				for !oneDayAhead(prevDate, date) {
 					prevDate = prevDate.Add(time.Hour * 24)
 					daysNeeded = append(daysNeeded, prevDate)
@@ -95,7 +94,7 @@ func figureDays() []time.Time {
 }
 
 func oneDayAhead(prevDate time.Time, date time.Time) bool {
-	nd := time.Date(prevDate.Year(), prevDate.Month(), prevDate.Day()+1, 0, 0, 0, 0, time.Local)
+	nd := time.Date(prevDate.Year(), prevDate.Month(), prevDate.Day()+1, 0, 0, 0, 0, l)
 	return nd.Year() == date.Year() && nd.Month() == date.Month() && nd.Day() == date.Day()
 }
 
@@ -155,6 +154,25 @@ func PullCommitsForDay(username string, repo string, day, month, year int) RepoA
 	ra.Name = repo
 	ra.Commits = commitsdiffs
 	return ra
+}
+
+func GetCommits(username string, repo string, since, until time.Time) []CommitDiff {
+	fmt.Printf("GetCommits uname:%v repo:%v since:%v, until:%v\n", username, repo, since, until)
+	base_url := "https://api.github.com/repos/" + username + "/" + repo + "/commits"
+	time_layout := "2006-01-02T15:04:05Z"
+	full_url := base_url + "?since=" + since.Format(time_layout) + "&until=" + until.Format(time_layout)
+
+	body := getBody(full_url)
+	var commits []Commit
+	json.Unmarshal(body, &commits)
+	ret := make([]CommitDiff, len(commits))
+	for i := range commits {
+		body := getBodyDiff(commits[i].Url)
+
+		ret[i].Metadata = commits[i]
+		ret[i].Diff = string(body)
+	}
+	return ret
 }
 
 func getBody(url string) []byte {
@@ -217,23 +235,4 @@ func waitForRateLimitReset(resp *http.Response) {
 		dur := time.Duration((diff + 3) * int64(time.Second))
 		time.Sleep(dur)
 	}
-}
-
-func GetCommits(username string, repo string, since, until time.Time) []CommitDiff {
-	fmt.Printf("GetCommits uname:%v repo:%v since:%v, until:%v\n", username, repo, since, until)
-	base_url := "https://api.github.com/repos/" + username + "/" + repo + "/commits"
-	time_layout := "2006-01-02T15:04:05Z"
-	full_url := base_url + "?since=" + since.Format(time_layout) + "&until=" + until.Format(time_layout)
-
-	body := getBody(full_url)
-	var commits []Commit
-	json.Unmarshal(body, &commits)
-	ret := make([]CommitDiff, len(commits))
-	for i := range commits {
-		body := getBodyDiff(commits[i].Url)
-
-		ret[i].Metadata = commits[i]
-		ret[i].Diff = string(body)
-	}
-	return ret
 }
