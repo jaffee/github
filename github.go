@@ -58,8 +58,7 @@ func PullCommitsForDay(username string, repo string, date time.Time) RepoActivit
 func GetCommits(username string, repo string, since, until time.Time) []CommitDiff {
 	fmt.Printf("GetCommits uname:%v repo:%v since:%v, until:%v\n", username, repo, since, until)
 	base_url := "https://api.github.com/repos/" + username + "/" + repo + "/commits"
-	time_layout := "2006-01-02T15:04:05Z"
-	full_url := base_url + "?since=" + since.Format(time_layout) + "&until=" + until.Format(time_layout)
+	full_url := base_url + "?since=" + since.Format(time.RFC3339) + "&until=" + until.Format(time.RFC3339)
 
 	body := getBody(full_url)
 	var commits []Commit
@@ -67,7 +66,6 @@ func GetCommits(username string, repo string, since, until time.Time) []CommitDi
 	ret := make([]CommitDiff, len(commits))
 	for i := range commits {
 		body := getBodyDiff(commits[i].Url)
-
 		ret[i].Metadata = commits[i]
 		ret[i].Diff = string(body)
 	}
