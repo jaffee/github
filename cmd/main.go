@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 	"github.com/jaffee/github"
 	"io/ioutil"
@@ -51,7 +52,7 @@ func main() {
 	}
 }
 
-func writeActivity(activity []RepoActivity, fname string) {
+func writeActivity(activity []github.RepoActivity, fname string) {
 	activityBytes, err := json.Marshal(activity)
 	check(err)
 	err = ioutil.WriteFile(fname, activityBytes, 0644)
