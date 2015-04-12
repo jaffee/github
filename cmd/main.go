@@ -1,4 +1,4 @@
-package main
+package cmd
 
 import (
 	"fmt"
@@ -29,7 +29,11 @@ const username = "jaffee"
 func main() {
 	args := os.Args[1:]
 	if len(args) == 3 {
-		github.PullDate(argsToDate(args), username, repos)
+		date := argsToDate(args)
+		activity := github.GetDailyActivity(username, repos, argsToDate(args))
+		fname := activityPath + fmt.Sprintf("%04v%02v%02v.activity", date.Year(), int(date.Month()), date.Day())
+		writeActivity(activity, fname)
+
 	} else {
 		for {
 			fmt.Println("Start new figurin")
@@ -37,12 +41,22 @@ func main() {
 			fmt.Printf("DaysNeeded: %v\n", ds)
 			for _, d := range ds {
 				fmt.Printf("Now pulling %v\n", d)
-				github.PullDate(d, username, repos)
+				activity := github.GetDailyActivity(username, repos, d)
+				fname := activityPath + fmt.Sprintf("%04v%02v%02v.activity", d.Year(), int(d.Month()), d.Day())
+				writeActivity(activity, fname)
 			}
 			fmt.Println("Done with this round... sleeping\n")
 			time.Sleep(12 * time.Minute)
 		}
 	}
+}
+
+func writeActivity(activity []RepoActivity, fname string) {
+	activityBytes, err := json.Marshal(activity)
+	check(err)
+	err = ioutil.WriteFile(fname, activityBytes, 0644)
+	check(err)
+
 }
 
 func argsToDate(args []string) time.Time {

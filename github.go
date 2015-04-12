@@ -11,25 +11,10 @@ import (
 
 var l, _ = time.LoadLocation("America/Chicago")
 
-const activityPath = "/Users/jaffee/go/src/github.com/jaffee/github/"
-
 func check(e error) {
 	if e != nil {
 		panic(e)
 	}
-}
-
-func PullDate(date time.Time, username string, repos []string) {
-	fmt.Printf("Pulling date %v\n", date)
-
-	activity := GetDailyActivity(username, repos, date)
-
-	fname := activityPath + fmt.Sprintf("%04v%02v%02v.activity", date.Year(), int(date.Month()), date.Day())
-
-	activityBytes, err := json.Marshal(activity)
-	check(err)
-	err = ioutil.WriteFile(fname, activityBytes, 0644)
-	check(err)
 }
 
 type RepoActivity struct {
