@@ -17,17 +17,42 @@ func check(e error) {
 	}
 }
 
-var startdate = time.Date(2015, time.Month(3), 19, 0, 0, 0, 0, l)
-var startminus1date = time.Date(2015, time.Month(3), 18, 0, 0, 0, 0, l)
+type Config struct {
+	Startdate    string
+	Activitypath string
+	Repos        []string
+}
 
-const activityPath = "/Users/jaffee/go/src/github.com/jaffee/github/"
+var startdate time.Time       //= time.Date(2015, time.Month(3), 19, 0, 0, 0, 0, l)
+var startminus1date time.Time //= time.Date(2015, time.Month(3), 18, 0, 0, 0, 0, l)
 
-var repos = []string{"gogurt", "goplait", "robpike.io", "github"}
+var activityPath string
+
+var repos []string
+
 var l, _ = time.LoadLocation("America/Chicago")
 
 const username = "jaffee"
 
 func main() {
+	conff, err := ioutil.ReadFile("config.json")
+	check(err)
+	config := &Config{}
+	err = json.Unmarshal(conff, config)
+	check(err)
+	timestr := config.Startdate + "T00:00:00"
+	startdate, err = time.ParseInLocation("2006-01-02T15:04:05", timestr, l)
+	check(err)
+	startminus1date = time.Date(startdate.Year(), startdate.Month(), startdate.Day()-1,
+		0, 0, 0, 0, startdate.Location())
+	repos = config.Repos
+
+	fmt.Printf("Start: %v, startm1: %v\n", startdate, startminus1date)
+	fmt.Printf("repos: %v\n", repos)
+	fmt.Printf("Conf: %v\n", config)
+
+	os.Exit(1)
+
 	args := os.Args[1:]
 	if len(args) == 3 {
 		date := argsToDate(args)

@@ -1,0 +1,4 @@
+{"startdate": "2015-03-19",
+ "activityPath": "/path/to/.activity/files/",
+ "repos": ["names", "of", "github", "repos"]
+}
