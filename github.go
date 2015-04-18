@@ -6,8 +6,11 @@ import (
 	"io/ioutil"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 )
+
+const github_api_url = "https://api.github.com/"
 
 var l, _ = time.LoadLocation("America/Chicago")
 
@@ -42,6 +45,29 @@ func GetDailyActivity(username string, repos []string, date time.Time) []RepoAct
 	return repoActivities
 }
 
+type Repository struct {
+}
+
+// func ReposWithLanguage(username string, language string) {
+// 	url := github_api_url + "/" + username + "/repos"
+// 	bod := getBody(url)
+
+// }
+
+func buildPath(pieces ...string) string {
+	final_piece := pieces[0]
+	for _, piece := range pieces[1:] {
+		if strings.HasSuffix(final_piece, "/") && strings.HasPrefix(piece, "/") {
+			final_piece = final_piece + piece[1:]
+		} else if !strings.HasSuffix(final_piece, "/") && !strings.HasPrefix(piece, "/") {
+			final_piece = final_piece + "/" + piece
+		} else {
+			final_piece += piece
+		}
+	}
+	return final_piece
+}
+
 func PullCommitsForDay(username string, repo string, date time.Time) RepoActivity {
 	fmt.Printf("PullCommitsForDay uname:%v repo:%v\n", username, repo)
 
@@ -57,7 +83,7 @@ func PullCommitsForDay(username string, repo string, date time.Time) RepoActivit
 
 func GetCommits(username string, repo string, since, until time.Time) []CommitDiff {
 	fmt.Printf("GetCommits uname:%v repo:%v since:%v, until:%v\n", username, repo, since, until)
-	base_url := "https://api.github.com/repos/" + username + "/" + repo + "/commits"
+	base_url := github_api_url + "repos/" + username + "/" + repo + "/commits"
 	full_url := base_url + "?since=" + since.Format(time.RFC3339) + "&until=" + until.Format(time.RFC3339)
 
 	body := getBody(full_url)
