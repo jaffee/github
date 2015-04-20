@@ -25,13 +25,8 @@ type RepoActivity struct {
 	Commits []CommitDiff
 }
 
-type Commit struct {
-	Url     string
-	Message string
-}
-
 type CommitDiff struct {
-	Metadata Commit
+	Metadata SubCommit
 	Diff     string
 }
 
@@ -45,14 +40,13 @@ func GetDailyActivity(username string, repos []string, date time.Time) []RepoAct
 	return repoActivities
 }
 
-type Repository struct {
+func ReposWithLanguage(username string, language string) {
+	url := github_api_url + "users/" + username + "/repos"
+	bod := getBody(url)
+	var repos []Repository
+	json.Unmarshal(bod, repos)
+
 }
-
-// func ReposWithLanguage(username string, language string) {
-// 	url := github_api_url + "/" + username + "/repos"
-// 	bod := getBody(url)
-
-// }
 
 func buildPath(pieces ...string) string {
 	final_piece := pieces[0]
@@ -87,7 +81,7 @@ func GetCommits(username string, repo string, since, until time.Time) []CommitDi
 	full_url := base_url + "?since=" + since.Format(time.RFC3339) + "&until=" + until.Format(time.RFC3339)
 
 	body := getBody(full_url)
-	var commits []Commit
+	var commits []SubCommit
 	json.Unmarshal(body, &commits)
 	ret := make([]CommitDiff, len(commits))
 	for i := range commits {
