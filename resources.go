@@ -59,7 +59,7 @@ type Owner struct {
 	Site_admin          bool
 }
 
-type ACommit struct {
+type Commit struct {
 	Url          string
 	Sha          string
 	Html_url     string
